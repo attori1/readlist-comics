@@ -1,0 +1,22 @@
+# dependencies
+node_modules/
+
+# secrets / env
+.env
+.env.local
+
+# build output
+dist/
+build/
+
+# local data (ta liste de lecture perso)
+data.json
+
+# logs
+*.log
+pnpm-debug.log*
+
+# os / editor
+.DS_Store
+.vscode/
+.idea/

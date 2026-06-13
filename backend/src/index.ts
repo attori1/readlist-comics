@@ -46,13 +46,13 @@ app.get("/api/random", async (c) => {
   }
 });
 
-app.get("/api/list", async (c) => c.json(await getList()));
+app.get("/api/list", (c) => c.json(getList()));
 
 app.post("/api/list", async (c) => {
   const body = await c.req.json();
   const v = body.volume;
   if (!v?.id) return c.json({ error: "missing volume" }, 400);
-  const item = await addItem({
+  const item = addItem({
     volumeId: v.id,
     title: v.title,
     publisher: v.publisher,
@@ -68,13 +68,13 @@ app.post("/api/list", async (c) => {
 });
 
 app.patch("/api/list/:id", async (c) => {
-  const item = await updateItem(c.req.param("id"), await c.req.json());
+  const item = updateItem(c.req.param("id"), await c.req.json());
   if (!item) return c.json({ error: "not found" }, 404);
   return c.json(item);
 });
 
-app.delete("/api/list/:id", async (c) => {
-  return c.json({ ok: await removeItem(c.req.param("id")) });
+app.delete("/api/list/:id", (c) => {
+  return c.json({ ok: removeItem(c.req.param("id")) });
 });
 
 const port = Number(process.env.PORT ?? 3000);

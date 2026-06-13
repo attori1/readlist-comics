@@ -6,9 +6,10 @@ const HEADERS = { "User-Agent": "watchlist/1.0 (personal project)" };
 
 type CacheEntry = { value: unknown; expires: number };
 const cache = new Map<string, CacheEntry>();
-const TTL = 1000 * 60 * 30;
+const SEARCH_TTL = 1000 * 60 * 30;   // searches barely change
+const COUNT_TTL = 1000 * 60 * 5;     // issue counts should stay fresh
 
-async function cvFetch(path: string): Promise<any> {
+async function cvFetch(path: string, ttl = SEARCH_TTL): Promise<any> {
   if (!API_KEY) {
     throw new Error("Missing COMICVINE_API_KEY. Copy .env.example to .env and add your key.");
   }
@@ -24,7 +25,7 @@ async function cvFetch(path: string): Promise<any> {
   if (data.status_code !== 1) {
     throw new Error(`ComicVine error: ${data.error ?? "unknown"}`);
   }
-  cache.set(url, { value: data, expires: Date.now() + TTL });
+  cache.set(url, { value: data, expires: Date.now() + ttl });
   return data;
 }
 
@@ -84,11 +85,29 @@ export async function searchVolumes(query: string, limit = 30): Promise<ComicSum
     .sort((a, b) => Number(!!b.image) - Number(!!a.image));
 }
 
+// count_of_issues on the volume often lags behind reality (your Absolute
+// Batman bug). The issues endpoint's total_results is the live count.
+async function liveIssueCount(volumeId: number): Promise<number | null> {
+  try {
+    const data = await cvFetch(
+      `/issues/?filter=volume:${volumeId}&field_list=id&limit=1`,
+      COUNT_TTL
+    );
+    return data.number_of_total_results ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function getVolume(id: number): Promise<ComicDetail> {
   const fields =
     "id,name,image,start_year,publisher,count_of_issues,description,deck,people,characters,concepts";
-  // the /volume/ endpoint wants the id prefixed with 4050-
-  const data = await cvFetch(`/volume/4050-${id}/?field_list=${fields}`);
+
+  // fire both requests at once instead of one after the other
+  const [data, freshCount] = await Promise.all([
+    cvFetch(`/volume/4050-${id}/?field_list=${fields}`),
+    liveIssueCount(id),
+  ]);
   const v = data.results;
 
   const creators = (v.people ?? [])
@@ -96,8 +115,10 @@ export async function getVolume(id: number): Promise<ComicDetail> {
     .slice(0, 6)
     .map((p: any) => p.name);
 
+  const base = mapVolume(v);
   return {
-    ...mapVolume(v),
+    ...base,
+    totalIssues: Math.max(base.totalIssues, freshCount ?? 0),
     deck: v.deck ?? "",
     summary: stripHtml(v.description).slice(0, 900),
     creators,
@@ -132,25 +153,21 @@ export async function getRandom(): Promise<ComicDetail> {
 }
 
 export async function getRecommendations(detail: ComicDetail): Promise<ComicSummary[]> {
-  const seeds: string[] = [];
-  if (detail.creators[0]) seeds.push(detail.creators[0]);
-  if (detail.characters[0]) seeds.push(detail.characters[0]);
-  if (detail.concepts[0]) seeds.push(detail.concepts[0]);
+  const seeds = [detail.creators[0], detail.characters[0], detail.concepts[0]]
+    .filter(Boolean) as string[];
   if (seeds.length === 0) seeds.push(detail.publisher);
 
+  // all seed searches run in parallel; a failing one is just skipped
+  const settled = await Promise.allSettled(seeds.map((s) => searchVolumes(s, 8)));
+
   const collected = new Map<number, ComicSummary>();
-  for (const seed of seeds) {
-    try {
-      const hits = await searchVolumes(seed, 8);
-      for (const h of hits) {
-        if (h.id !== detail.id && h.image && !collected.has(h.id)) {
-          collected.set(h.id, h);
-        }
+  for (const result of settled) {
+    if (result.status !== "fulfilled") continue;
+    for (const h of result.value) {
+      if (h.id !== detail.id && h.image && !collected.has(h.id)) {
+        collected.set(h.id, h);
       }
-    } catch {
-      // a bad seed shouldn't kill the whole thing
     }
-    if (collected.size >= 6) break;
   }
   return [...collected.values()].slice(0, 6);
 }

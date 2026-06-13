@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Routes, Route, NavLink, useNavigate, useLocation } from "react-router-dom";
 import Search from "./pages/Search.tsx";
-import Detail from "./pages/Details.tsx";
+import Detail from "./pages/Detail.tsx";
 import ListPage from "./pages/ListPage.tsx";
 import { getRandom } from "./api";
 

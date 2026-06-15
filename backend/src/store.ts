@@ -15,9 +15,18 @@ export type ListItem = {
   rating: number;
   readNextRank: number | null;
   addedAt: string;
+  lastReadAt: string | null;
 };
 
-// DB rows are snake_case, the API speaks camelCase
+export type Stats = {
+  readLast60: number;
+  pacePerWeek: number;
+  remaining: number;
+  projectedFinish: string | null;
+  perMonth: { month: string; count: number }[];
+  continueReading: ListItem | null;
+};
+
 function rowToItem(r: any): ListItem {
   return {
     id: r.id,
@@ -32,15 +41,20 @@ function rowToItem(r: any): ListItem {
     rating: r.rating,
     readNextRank: r.read_next_rank,
     addedAt: r.added_at,
+    lastReadAt: r.last_read_at ?? null,
   };
 }
 
 export function getList(userId = "local"): ListItem[] {
-  const rows = db.prepare("SELECT * FROM items WHERE user_id = ? ORDER BY added_at DESC").all(userId);
+  const rows = db.prepare(`
+    SELECT items.*,
+           (SELECT MAX(logged_at) FROM progress_log WHERE item_id = items.id) AS last_read_at
+    FROM items WHERE user_id = ? ORDER BY added_at DESC
+  `).all(userId);
   return rows.map(rowToItem);
 }
 
-export function addItem(item: Omit<ListItem, "id" | "addedAt">, userId = "local"): ListItem {
+export function addItem(item: Omit<ListItem, "id" | "addedAt" | "lastReadAt">, userId = "local"): ListItem {
   const existing = db
     .prepare("SELECT * FROM items WHERE user_id = ? AND volume_id = ?")
     .get(userId, item.volumeId);
@@ -63,7 +77,7 @@ export function updateItem(id: string, patch: Partial<ListItem>): ListItem | nul
   if (!row) return null;
   const item = rowToItem(row);
 
-  // log progress changes so we can compute a reading pace later
+  // log progress changes -> this is what powers the reading-pace stats
   if (patch.progress != null && patch.progress !== item.progress) {
     db.prepare("INSERT INTO progress_log (item_id, delta, logged_at) VALUES (?, ?, ?)")
       .run(id, patch.progress - item.progress, new Date().toISOString());
@@ -71,14 +85,12 @@ export function updateItem(id: string, patch: Partial<ListItem>): ListItem | nul
 
   const merged = { ...item, ...patch };
 
-  // finished every issue -> mark done automatically
   if (merged.status === "reading" && merged.totalIssues > 0 && merged.progress >= merged.totalIssues) {
     merged.status = "done";
     merged.progress = merged.totalIssues;
     merged.readNextRank = null;
   }
 
-  // Read Next holds 5 max: drop the lowest priority if we go over
   if (patch.readNextRank != null) {
     const ranked: any[] = db
       .prepare("SELECT id, read_next_rank FROM items WHERE read_next_rank IS NOT NULL AND id != ? ORDER BY read_next_rank")
@@ -93,9 +105,64 @@ export function updateItem(id: string, patch: Partial<ListItem>): ListItem | nul
     WHERE id = ?
   `).run(merged.status, merged.progress, merged.rating, merged.readNextRank, merged.totalIssues, id);
 
-  return rowToItem(db.prepare("SELECT * FROM items WHERE id = ?").get(id));
+  const fresh: any = db.prepare(`
+    SELECT items.*, (SELECT MAX(logged_at) FROM progress_log WHERE item_id = items.id) AS last_read_at
+    FROM items WHERE id = ?
+  `).get(id);
+  return rowToItem(fresh);
 }
 
 export function removeItem(id: string): boolean {
   return db.prepare("DELETE FROM items WHERE id = ?").run(id).changes > 0;
+}
+
+export function getStats(userId = "local"): Stats {
+  const now = Date.now();
+  const since = new Date(now - 60 * 24 * 3600 * 1000).toISOString();
+
+  // issues read in the last 60 days (only positive deltas count)
+  const recent: any = db.prepare(`
+    SELECT COALESCE(SUM(CASE WHEN delta > 0 THEN delta ELSE 0 END), 0) AS read
+    FROM progress_log
+    JOIN items ON items.id = progress_log.item_id
+    WHERE items.user_id = ? AND progress_log.logged_at >= ?
+  `).get(userId, since);
+  const readLast60 = recent.read as number;
+  const pacePerWeek = Math.round((readLast60 / (60 / 7)) * 100) / 100;
+
+  // issues left across everything you're currently reading
+  const rem: any = db.prepare(`
+    SELECT COALESCE(SUM(max(total_issues - progress, 0)), 0) AS remaining
+    FROM items WHERE user_id = ? AND status = 'reading'
+  `).get(userId);
+  const remaining = rem.remaining as number;
+
+  const projectedFinish =
+    pacePerWeek > 0 && remaining > 0
+      ? new Date(now + (remaining / pacePerWeek) * 7 * 24 * 3600 * 1000).toISOString().slice(0, 10)
+      : null;
+
+  const perMonthRows: any[] = db.prepare(`
+    SELECT substr(progress_log.logged_at, 1, 7) AS month,
+           SUM(CASE WHEN delta > 0 THEN delta ELSE 0 END) AS count
+    FROM progress_log
+    JOIN items ON items.id = progress_log.item_id
+    WHERE items.user_id = ?
+    GROUP BY month ORDER BY month DESC LIMIT 6
+  `).all(userId);
+  const perMonth = perMonthRows
+    .map((r) => ({ month: r.month as string, count: r.count as number }))
+    .reverse();
+
+  // most recently progressed reading item = "continue reading"
+  const cont: any = db.prepare(`
+    SELECT items.*, (SELECT MAX(logged_at) FROM progress_log WHERE item_id = items.id) AS last_read_at
+    FROM items
+    JOIN progress_log ON progress_log.item_id = items.id
+    WHERE items.user_id = ? AND items.status = 'reading'
+    ORDER BY progress_log.logged_at DESC LIMIT 1
+  `).get(userId);
+  const continueReading = cont ? rowToItem(cont) : null;
+
+  return { readLast60, pacePerWeek, remaining, projectedFinish, perMonth, continueReading };
 }

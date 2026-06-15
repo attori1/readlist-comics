@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { getVolume, getList, addToList } from "../api";
 import type { ComicDetail } from "../types";
 import Cover from "../components/Cover";
+import { SkeletonDetail } from "../components/Skeletons";
 
 const PALETTE = ["#1d4ed8", "#138a8a", "#ef3e2c", "#7c2d12", "#3b2a5a", "#166534", "#f26ca7", "#b45309"];
 function colorFor(t: string) {
@@ -43,7 +44,7 @@ export default function Detail() {
     setInList(true);
   }
 
-  if (status === "loading") return <div className="loading">Pulling the issue…</div>;
+  if (status === "loading") return <SkeletonDetail />;
   if (status === "error") return <div className="notice error">⚠ {error}</div>;
   if (!comic) return null;
 

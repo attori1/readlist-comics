@@ -4,7 +4,7 @@ import { cors } from "hono/cors";
 import { serve } from "@hono/node-server";
 
 import { searchVolumes, getVolume, getRandom, getRecommendations, type ComicDetail } from "./comicvine.js";
-import { getList, addItem, updateItem, removeItem } from "./store.js";
+import { getList, addItem, updateItem, removeItem, getStats } from "./store.js";
 
 const app = new Hono();
 app.use("/*", cors());
@@ -76,6 +76,8 @@ app.patch("/api/list/:id", async (c) => {
 app.delete("/api/list/:id", (c) => {
   return c.json({ ok: removeItem(c.req.param("id")) });
 });
+
+app.get("/api/stats", (c) => c.json(getStats()));
 
 const port = Number(process.env.PORT ?? 3000);
 serve({ fetch: app.fetch, port }, (info) => {

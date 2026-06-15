@@ -1,4 +1,4 @@
-import type { ComicSummary, ComicDetail, ListItem, Status } from "./types";
+import type { ComicSummary, ComicDetail, ListItem, Status, Stats } from "./types";
 
 const BASE = "http://localhost:3000";
 
@@ -48,4 +48,8 @@ export async function updateItem(id: string, patch: Partial<ListItem>): Promise<
 
 export async function removeItem(id: string): Promise<void> {
   await fetch(`${BASE}/api/list/${id}`, { method: "DELETE" });
+}
+
+export async function getStats(): Promise<Stats> {
+  return json<Stats>(await fetch(`${BASE}/api/stats`));
 }

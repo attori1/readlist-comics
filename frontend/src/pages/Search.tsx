@@ -2,6 +2,7 @@ import { useState } from "react";
 import { search } from "../api";
 import type { ComicSummary } from "../types";
 import Cover from "../components/Cover";
+import { SkeletonGrid } from "../components/Skeletons";
 
 export default function Search() {
   const [q, setQ] = useState("");
@@ -44,7 +45,7 @@ export default function Search() {
       </div>
       <div className="hint">Searching ComicVine — covers, summaries &amp; issue counts are pulled live.</div>
 
-      {status === "loading" && <div className="loading">Flipping through the back issues…</div>}
+      {status === "loading" && <SkeletonGrid />}
       {status === "error" && <div className="notice error">⚠ {error}</div>}
       {status === "done" && results.length === 0 && <div className="notice">No results. Try another title.</div>}
 

@@ -33,6 +33,11 @@ export default function ListPage() {
     .filter((i) => i.readNextRank != null)
     .sort((a, b) => (a.readNextRank! - b.readNextRank!));
 
+  const continueItem =
+    items
+      .filter((i) => i.status === "reading" && i.lastReadAt)
+      .sort((a, b) => (b.lastReadAt! > a.lastReadAt! ? 1 : -1))[0] ?? null;
+
   async function togglePin(item: ListItem) {
     if (item.readNextRank != null) {
       await patch(item.id, { readNextRank: null });
@@ -54,6 +59,24 @@ export default function ListPage() {
       <div className="page-head">
         <h1 className="page-title"><span className="kick">// Your watchlist</span>My List</h1>
       </div>
+
+      {continueItem && (
+        <div className="continue">
+          <div>
+            <div className="lbl">Continue reading</div>
+            <div className="ct-title">{continueItem.title}</div>
+          </div>
+          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+            <span className="lbl">{continueItem.progress} / {continueItem.totalIssues || "?"}</span>
+            <button
+              className="resume"
+              onClick={() => patch(continueItem.id, { progress: continueItem.progress + 1, status: "reading" })}
+            >
+              +1 issue ✓
+            </button>
+          </div>
+        </div>
+      )}
 
       {error && <div className="notice error">⚠ {error}</div>}
 

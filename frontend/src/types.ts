@@ -32,4 +32,14 @@ export type ComicSummary = {
     rating: number;
     readNextRank: number | null;
     addedAt: string;
+    lastReadAt: string | null;
   };
+
+  export type Stats = {
+  readLast60: number;
+  pacePerWeek: number;
+  remaining: number;
+  projectedFinish: string | null;
+  perMonth: { month: string; count: number }[];
+  continueReading: ListItem | null;
+};

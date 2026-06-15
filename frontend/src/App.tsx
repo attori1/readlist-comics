@@ -4,6 +4,7 @@ import Search from "./pages/Search.tsx";
 import Detail from "./pages/Detail.tsx";
 import ListPage from "./pages/ListPage.tsx";
 import { getRandom } from "./api";
+import StatsPage from "./pages/Stats";
 
 function useTheme(): [string, () => void] {
   const [theme, setTheme] = useState<string>(() => localStorage.getItem("watchlist-theme") || "light");
@@ -53,6 +54,9 @@ export default function App() {
           <NavLink to="/list" className={({ isActive }) => "nav-btn" + (isActive ? " active" : "")}>
             My List
           </NavLink>
+          <NavLink to="/stats" className={({ isActive }) => "nav-btn" + (isActive ? " active" : "")}>
+            Stats
+          </NavLink>
           <button className="nav-btn dice" onClick={rollRandom} disabled={rolling}>
             <span className="pip">⚄</span> Random
           </button>
@@ -67,6 +71,7 @@ export default function App() {
           <Route path="/" element={<Search />} />
           <Route path="/comic/:id" element={<Detail />} />
           <Route path="/list" element={<ListPage />} />
+          <Route path="/stats" element={<StatsPage />} />
         </Routes>
       </main>
 

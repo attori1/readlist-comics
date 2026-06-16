@@ -2,9 +2,9 @@ import "dotenv/config";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { serve } from "@hono/node-server";
-
+import { getList, addItem, updateItem, removeItem, getStats, exportData, importData } from "./store.js";
 import { searchVolumes, getVolume, getRandom, getRecommendations, type ComicDetail } from "./comicvine.js";
-import { getList, addItem, updateItem, removeItem, getStats } from "./store.js";
+
 
 const app = new Hono();
 app.use("/*", cors());
@@ -100,6 +100,15 @@ app.delete("/api/list/:id", (c) => {
 });
 
 app.get("/api/stats", (c) => c.json(getStats()));
+
+app.get("/api/export", (c) => c.json(exportData()));
+
+app.post("/api/import", async (c) => {
+  const data = await c.req.json();
+  if (!data || !Array.isArray(data.items)) return c.json({ error: "invalid backup file" }, 400);
+  const list = importData(data);
+  return c.json({ ok: true, count: list.length });
+});
 
 const port = Number(process.env.PORT ?? 3000);
 serve({ fetch: app.fetch, port }, (info) => {

@@ -166,3 +166,55 @@ export function getStats(userId = "local"): Stats {
 
   return { readLast60, pacePerWeek, remaining, projectedFinish, perMonth, continueReading };
 }
+
+export function exportData(userId = "local") {
+  const items: any[] = db.prepare("SELECT * FROM items WHERE user_id = ?").all(userId);
+  const ids = items.map((i) => i.id);
+  const progressLog = ids.length
+    ? db.prepare(
+        `SELECT item_id, delta, logged_at FROM progress_log WHERE item_id IN (${ids.map(() => "?").join(",")})`
+      ).all(...ids)
+    : [];
+  return { exportedAt: new Date().toISOString(), items, progressLog };
+}
+
+export function importData(data: { items: any[]; progressLog?: any[] }, userId = "local") {
+  const items = data.items ?? [];
+  const log = data.progressLog ?? [];
+
+  // run as one atomic transaction: if anything fails, nothing changes
+  const tx = db.transaction(() => {
+    db.prepare("DELETE FROM progress_log WHERE item_id IN (SELECT id FROM items WHERE user_id = ?)").run(userId);
+    db.prepare("DELETE FROM items WHERE user_id = ?").run(userId);
+
+    const insItem = db.prepare(`
+      INSERT INTO items (id, user_id, volume_id, title, publisher, year, image, total_issues, status, progress, rating, read_next_rank, added_at)
+      VALUES (@id, @user_id, @volume_id, @title, @publisher, @year, @image, @total_issues, @status, @progress, @rating, @read_next_rank, @added_at)
+    `);
+    for (const it of items) {
+      insItem.run({
+        id: it.id ?? crypto.randomUUID(),
+        user_id: userId,
+        volume_id: it.volume_id,
+        title: it.title,
+        publisher: it.publisher ?? null,
+        year: it.year ?? null,
+        image: it.image ?? "",
+        total_issues: it.total_issues ?? 0,
+        status: it.status ?? "to-read",
+        progress: it.progress ?? 0,
+        rating: it.rating ?? 0,
+        read_next_rank: it.read_next_rank ?? null,
+        added_at: it.added_at ?? new Date().toISOString(),
+      });
+    }
+
+    const insLog = db.prepare("INSERT INTO progress_log (item_id, delta, logged_at) VALUES (@item_id, @delta, @logged_at)");
+    for (const l of log) {
+      insLog.run({ item_id: l.item_id, delta: l.delta, logged_at: l.logged_at });
+    }
+  });
+  tx();
+
+  return getList(userId);
+}

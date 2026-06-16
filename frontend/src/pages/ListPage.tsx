@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { getList, updateItem, removeItem } from "../api";
 import type { ListItem } from "../types";
+import BackupBar from "../components/BackupBar";
 
 export default function ListPage() {
   const [items, setItems] = useState<ListItem[]>([]);
@@ -20,6 +21,7 @@ export default function ListPage() {
   }
   useEffect(() => { reload(); }, []);
 
+  // reload after each change so server-side rules (auto-done) stay in sync
   async function patch(id: string, p: Partial<ListItem>) {
     await updateItem(id, p);
     await reload();
@@ -168,6 +170,8 @@ export default function ListPage() {
           </div>
         </div>
       </div>
+
+      <BackupBar onImported={reload} />
     </section>
   );
 }

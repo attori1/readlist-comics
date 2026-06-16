@@ -53,3 +53,16 @@ export async function removeItem(id: string): Promise<void> {
 export async function getStats(): Promise<Stats> {
   return json<Stats>(await fetch(`${BASE}/api/stats`));
 }
+
+export async function exportData(): Promise<any> {
+  return json<any>(await fetch(`${BASE}/api/export`));
+}
+
+export async function importData(data: any): Promise<{ ok: boolean; count: number }> {
+  const res = await fetch(`${BASE}/api/import`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  return json(res);
+}

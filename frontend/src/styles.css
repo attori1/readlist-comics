@@ -241,3 +241,5 @@
 .bar-val { font-family: var(--mono); font-size: 12px; }
 .bar-label { font-family: var(--mono); font-size: 10px; color: var(--muted); text-transform: uppercase; }
 @media (max-width: 700px) { .stat-blocks { grid-template-columns: 1fr; } }
+
+.btn-read { background: var(--blue); color: #fff; }

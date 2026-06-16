@@ -12,6 +12,18 @@ app.use("/*", cors());
 const BUY_BASE = process.env.BUY_BASE_URL ?? "https://www.amazon.com/s?k=";
 const buyLink = (title: string) => BUY_BASE + encodeURIComponent(`${title} comic graphic novel`);
 
+function readLink(publisher: string, title: string): { label: string; url: string } {
+  const p = (publisher || "").toLowerCase();
+  const q = encodeURIComponent(title);
+  if (p.includes("marvel")) {
+    return { label: "Read on Marvel Unlimited", url: `https://www.marvel.com/comics/search?text=${q}` };
+  }
+  if (p.includes("dc")) {
+    return { label: "Read on DC Universe Infinite", url: `https://www.dcuniverseinfinite.com/search?q=${q}` };
+  }
+  return { label: "Read on Kindle", url: `https://www.amazon.com/s?k=${q}+comixology+kindle` };
+}
+
 app.get("/", (c) => c.text("watchlist backend is running"));
 
 app.get("/api/search", async (c) => {
@@ -30,7 +42,12 @@ app.get("/api/volume/:id", async (c) => {
   try {
     const detail: ComicDetail = await getVolume(id);
     const recommendations = await getRecommendations(detail);
-    return c.json({ ...detail, buyLink: buyLink(detail.title), recommendations });
+    return c.json({
+      ...detail,
+      buyLink: buyLink(detail.title),
+      readLink: readLink(detail.publisher, detail.title),
+      recommendations,
+    });
   } catch (err: any) {
     return c.json({ error: err.message }, 502);
   }
@@ -40,7 +57,12 @@ app.get("/api/random", async (c) => {
   try {
     const detail = await getRandom();
     const recommendations = await getRecommendations(detail);
-    return c.json({ ...detail, buyLink: buyLink(detail.title), recommendations });
+    return c.json({
+      ...detail,
+      buyLink: buyLink(detail.title),
+      readLink: readLink(detail.publisher, detail.title),
+      recommendations,
+    });
   } catch (err: any) {
     return c.json({ error: err.message }, 502);
   }

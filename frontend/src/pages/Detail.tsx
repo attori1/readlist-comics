@@ -86,6 +86,9 @@ export default function Detail() {
             <a className="btn-stamp btn-buy" href={comic.buyLink} target="_blank" rel="noreferrer">
               Buy (print) →
             </a>
+            <a className="btn-stamp btn-read" href={comic.readLink.url} target="_blank" rel="noreferrer">
+              {comic.readLink.label} →
+            </a>
           </div>
 
           {comic.recommendations.length > 0 && (

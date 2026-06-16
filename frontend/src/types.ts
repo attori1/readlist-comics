@@ -14,6 +14,7 @@ export type ComicSummary = {
     characters: string[];
     concepts: string[];
     buyLink: string;
+    readLink: { label: string; url: string };
     recommendations: ComicSummary[];
   };
   

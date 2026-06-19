@@ -44,3 +44,5 @@ export type ComicSummary = {
   perMonth: { month: string; count: number }[];
   continueReading: ListItem | null;
 };
+
+export type User = { id: string; email: string };

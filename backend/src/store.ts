@@ -72,12 +72,11 @@ export function addItem(item: Omit<ListItem, "id" | "addedAt" | "lastReadAt">, u
   return rowToItem(db.prepare("SELECT * FROM items WHERE id = ?").get(id));
 }
 
-export function updateItem(id: string, patch: Partial<ListItem>): ListItem | null {
-  const row: any = db.prepare("SELECT * FROM items WHERE id = ?").get(id);
+export function updateItem(id: string, patch: Partial<ListItem>, userId = "local"): ListItem | null {
+  const row: any = db.prepare("SELECT * FROM items WHERE id = ? AND user_id = ?").get(id, userId);
   if (!row) return null;
   const item = rowToItem(row);
 
-  // log progress changes -> this is what powers the reading-pace stats
   if (patch.progress != null && patch.progress !== item.progress) {
     db.prepare("INSERT INTO progress_log (item_id, delta, logged_at) VALUES (?, ?, ?)")
       .run(id, patch.progress - item.progress, new Date().toISOString());
@@ -93,8 +92,8 @@ export function updateItem(id: string, patch: Partial<ListItem>): ListItem | nul
 
   if (patch.readNextRank != null) {
     const ranked: any[] = db
-      .prepare("SELECT id, read_next_rank FROM items WHERE read_next_rank IS NOT NULL AND id != ? ORDER BY read_next_rank")
-      .all(id);
+      .prepare("SELECT id, read_next_rank FROM items WHERE user_id = ? AND read_next_rank IS NOT NULL AND id != ? ORDER BY read_next_rank")
+      .all(userId, id);
     if (ranked.length >= 5) {
       db.prepare("UPDATE items SET read_next_rank = NULL WHERE id = ?").run(ranked[ranked.length - 1].id);
     }
@@ -112,8 +111,8 @@ export function updateItem(id: string, patch: Partial<ListItem>): ListItem | nul
   return rowToItem(fresh);
 }
 
-export function removeItem(id: string): boolean {
-  return db.prepare("DELETE FROM items WHERE id = ?").run(id).changes > 0;
+export function removeItem(id: string, userId = "local"): boolean {
+  return db.prepare("DELETE FROM items WHERE id = ? AND user_id = ?").run(id, userId).changes > 0;
 }
 
 export function getStats(userId = "local"): Stats {

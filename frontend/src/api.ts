@@ -1,6 +1,6 @@
-import type { ComicSummary, ComicDetail, ListItem, Status, Stats } from "./types";
+import type { ComicSummary, ComicDetail, ListItem, Status, Stats, User } from "./types";
 
-const BASE = "http://localhost:3000";
+const BASE = ""; // relative -> goes through the Vite proxy to the backend
 
 async function json<T>(res: Response): Promise<T> {
   if (!res.ok) {
@@ -11,8 +11,7 @@ async function json<T>(res: Response): Promise<T> {
 }
 
 export async function search(q: string): Promise<ComicSummary[]> {
-  const res = await fetch(`${BASE}/api/search?q=${encodeURIComponent(q)}`);
-  const data = await json<{ results: ComicSummary[] }>(res);
+  const data = await json<{ results: ComicSummary[] }>(await fetch(`${BASE}/api/search?q=${encodeURIComponent(q)}`));
   return data.results;
 }
 
@@ -30,8 +29,7 @@ export async function getList(): Promise<ListItem[]> {
 
 export async function addToList(volume: ComicSummary, status: Status = "to-read"): Promise<ListItem> {
   const res = await fetch(`${BASE}/api/list`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
+    method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ volume, status }),
   });
   return json<ListItem>(res);
@@ -39,8 +37,7 @@ export async function addToList(volume: ComicSummary, status: Status = "to-read"
 
 export async function updateItem(id: string, patch: Partial<ListItem>): Promise<ListItem> {
   const res = await fetch(`${BASE}/api/list/${id}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
+    method: "PATCH", headers: { "Content-Type": "application/json" },
     body: JSON.stringify(patch),
   });
   return json<ListItem>(res);
@@ -60,9 +57,33 @@ export async function exportData(): Promise<any> {
 
 export async function importData(data: any): Promise<{ ok: boolean; count: number }> {
   const res = await fetch(`${BASE}/api/import`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
+    method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
   return json(res);
+}
+
+export async function authMe(): Promise<User | null> {
+  const { user } = await json<{ user: User | null }>(await fetch(`${BASE}/api/auth/me`));
+  return user;
+}
+
+export async function authRegister(email: string, password: string): Promise<User> {
+  const res = await fetch(`${BASE}/api/auth/register`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  return (await json<{ user: User }>(res)).user;
+}
+
+export async function authLogin(email: string, password: string): Promise<User> {
+  const res = await fetch(`${BASE}/api/auth/login`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  return (await json<{ user: User }>(res)).user;
+}
+
+export async function authLogout(): Promise<void> {
+  await fetch(`${BASE}/api/auth/logout`, { method: "POST" });
 }
